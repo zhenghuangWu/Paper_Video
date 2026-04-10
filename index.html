@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4D Video Relighting Demo</title>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --border: #e0e0e6;
+    --text: #1d1d2b;
+    --text-muted: #6b6b80;
+    --accent: #4361ee;
+    --accent-dim: #d6deff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+
+  header {
+    text-align: center;
+    padding: 40px 0 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+
+  header h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 12px;
+  }
+
+  header p {
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .section-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .section-desc {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-bottom: 28px;
+  }
+
+  .prompt-tag {
+    display: inline-block;
+    background: var(--accent-dim);
+    color: var(--accent);
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  .comparison-block {
+    margin-bottom: 40px;
+  }
+
+  .comparison-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .comparison-header h2 {
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+  }
+
+  .btn:hover {
+    background: var(--border);
+  }
+
+  .btn:active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .video-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+  }
+
+  @media (max-width: 1000px) {
+    .video-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @media (max-width: 600px) {
+    .video-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .video-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .video-card:hover {
+    border-color: var(--accent-dim);
+  }
+
+  .video-card.highlight {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(67, 97, 238, 0.18);
+  }
+
+  .video-card video {
+    width: 100%;
+    display: block;
+    aspect-ratio: 1 / 1;
+    object-fit: contain;
+    background: var(--surface);
+  }
+
+  .video-card .label {
+    padding: 4px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .video-card .method-name {
+    font-weight: 600;
+    font-size: 0.75rem;
+  }
+
+  .video-card .method-tag {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    background: var(--bg);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  .video-card.highlight .method-name {
+    color: var(--accent);
+  }
+
+  .source-row {
+    margin-bottom: 14px;
+  }
+
+  .source-row .video-card {
+    max-width: 200px;
+  }
+
+  .source-row .label-inline {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .source-row .label-inline span {
+    font-weight: 600;
+    font-size: 0.88rem;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 32px 0;
+  }
+
+  footer {
+    text-align: center;
+    padding: 28px 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <h1>Qualitative Relighting Results</h1>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- ============ Bird Scene (180° Extreme Viewpoint) ============ -->
+  <div class="comparison-block" id="bird-block">
+    <div class="comparison-header">
+      <h2 class="section-title">Under Extreme Viewpoints (180°) — Bird <span class="prompt-tag">Prompt: "Sunshine, soft light, cinematic quality"</span></h2>
+      <div class="controls">
+        <button class="btn" onclick="syncPlayAll('bird')">&#9654; Play All</button>
+        <button class="btn" onclick="syncPauseAll('bird')">&#10074;&#10074; Pause All</button>
+        <button class="btn" onclick="syncRestartAll('bird')">&#8635; Restart</button>
+      </div>
+    </div>
+
+    <div class="source-row">
+      <div class="label-inline">
+        <span>Source Video</span>
+        <span class="method-tag">Original input</span>
+      </div>
+      <div class="video-card">
+        <video src="Bird/Bird.mp4" muted loop playsinline data-group="bird"></video>
+        <div class="label">
+          <span class="method-name">Source</span>
+          <span class="method-tag">Input</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="video-grid">
+      <div class="video-card">
+        <video src="Bird/Bird_EX4D_180.mp4" muted loop playsinline data-group="bird"></video>
+        <div class="label">
+          <span class="method-name">EX-4D (w/o Light)</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Bird/Bird_ICLIGHT_180.mp4" muted loop playsinline data-group="bird"></video>
+        <div class="label">
+          <span class="method-name">IC-LIGHT</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Bird/Bird_EX4D_LAV_180.mp4" muted loop playsinline data-group="bird"></video>
+        <div class="label">
+          <span class="method-name">EX-4D + LAV</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Bird/Bird_LAV_EX4D_180.mp4" muted loop playsinline data-group="bird"></video>
+        <div class="label">
+          <span class="method-name">LAV + EX-4D</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Bird/Bird_LightX_180.mp4" muted loop playsinline data-group="bird"></video>
+        <div class="label">
+          <span class="method-name">LIGHT-X</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Bird/Bird180.mp4" muted loop playsinline data-group="bird"></video>
+        <div class="label">
+          <span class="method-name">Ours</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============ ADb Scene (90° Viewpoint) ============ -->
+  <div class="comparison-block" id="adb-block">
+    <div class="comparison-header">
+      <h2 class="section-title">Under Medium Viewpoints (90°) — Autonomous Driving <span class="prompt-tag">Prompt: "Sunset, cinematic quality"</span></h2>
+      <div class="controls">
+        <button class="btn" onclick="syncPlayAll('adb')">&#9654; Play All</button>
+        <button class="btn" onclick="syncPauseAll('adb')">&#10074;&#10074; Pause All</button>
+        <button class="btn" onclick="syncRestartAll('adb')">&#8635; Restart</button>
+      </div>
+    </div>
+
+    <div class="source-row">
+      <div class="label-inline">
+        <span>Source Video</span>
+        <span class="method-tag">Original input</span>
+      </div>
+      <div class="video-card">
+        <video src="ADb/ADb.mp4" muted loop playsinline data-group="adb"></video>
+        <div class="label">
+          <span class="method-name">Source</span>
+          <span class="method-tag">Input</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="video-grid">
+      <div class="video-card">
+        <video src="ADb/ADb_EX4D_90.mp4" muted loop playsinline data-group="adb"></video>
+        <div class="label">
+          <span class="method-name">EX-4D (w/o Light)</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="ADb/ADb_ICLIGHT_90.mp4" muted loop playsinline data-group="adb"></video>
+        <div class="label">
+          <span class="method-name">IC-LIGHT</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="ADb/ADb_EX4D_LAV_90.mp4" muted loop playsinline data-group="adb"></video>
+        <div class="label">
+          <span class="method-name">EX-4D + LAV</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="ADb/ADb_LAV_EX4D_90.mp4" muted loop playsinline data-group="adb"></video>
+        <div class="label">
+          <span class="method-name">LAV + EX-4D</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="ADb/ADb_LightX_90.mp4" muted loop playsinline data-group="adb"></video>
+        <div class="label">
+          <span class="method-name">LIGHT-X</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="ADb/ADb90.mp4" muted loop playsinline data-group="adb"></video>
+        <div class="label">
+          <span class="method-name">Ours</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============ Car Scene (30° Normal Viewpoint) ============ -->
+  <div class="comparison-block" id="car-block">
+    <div class="comparison-header">
+      <h2 class="section-title">Under Normal Viewpoints (30°) — Car <span class="prompt-tag">Prompt: "Sunshine, cinematic quality"</span></h2>
+      <div class="controls">
+        <button class="btn" onclick="syncPlayAll('car')">&#9654; Play All</button>
+        <button class="btn" onclick="syncPauseAll('car')">&#10074;&#10074; Pause All</button>
+        <button class="btn" onclick="syncRestartAll('car')">&#8635; Restart</button>
+      </div>
+    </div>
+
+    <div class="source-row">
+      <div class="label-inline">
+        <span>Source Video</span>
+        <span class="method-tag">Original input</span>
+      </div>
+      <div class="video-card">
+        <video src="Car/Car.mp4" muted loop playsinline data-group="car"></video>
+        <div class="label">
+          <span class="method-name">Source</span>
+          <span class="method-tag">Input</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="video-grid">
+      <div class="video-card">
+        <video src="Car/Car_EX4D_30.mp4" muted loop playsinline data-group="car"></video>
+        <div class="label">
+          <span class="method-name">EX-4D (w/o Light)</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Car/Car_ICLIGHT_30.mp4" muted loop playsinline data-group="car"></video>
+        <div class="label">
+          <span class="method-name">IC-LIGHT</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Car/Car_EX4D_LAV_30.mp4" muted loop playsinline data-group="car"></video>
+        <div class="label">
+          <span class="method-name">EX-4D + LAV</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Car/Car_LAV_EX4D_30.mp4" muted loop playsinline data-group="car"></video>
+        <div class="label">
+          <span class="method-name">LAV + EX-4D</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Car/Car_LightX_30.mp4" muted loop playsinline data-group="car"></video>
+        <div class="label">
+          <span class="method-name">LIGHT-X</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Car/Car30.mp4" muted loop playsinline data-group="car"></video>
+        <div class="label">
+          <span class="method-name">Ours</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ============ Visual Results (Figure 1) ============ -->
+  <h2 class="section-title" style="margin-bottom: 24px;">Visual Results of 4D Video Relighting</h2>
+
+  <!-- Woman -->
+  <div class="comparison-block" id="woman-block">
+    <div class="comparison-header">
+      <h2 class="section-title">Woman <span class="prompt-tag">Prompt: "Pink neon"</span></h2>
+      <div class="controls">
+        <button class="btn" onclick="syncPlayAll('woman')">&#9654; Play All</button>
+        <button class="btn" onclick="syncPauseAll('woman')">&#10074;&#10074; Pause All</button>
+        <button class="btn" onclick="syncRestartAll('woman')">&#8635; Restart</button>
+      </div>
+    </div>
+
+    <div class="source-row">
+      <div class="label-inline">
+        <span>Source Video</span>
+        <span class="method-tag">Original input</span>
+      </div>
+      <div class="video-card">
+        <video src="Woman/Woman.mp4" muted loop playsinline data-group="woman"></video>
+        <div class="label">
+          <span class="method-name">Source</span>
+          <span class="method-tag">Input</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="video-grid">
+      <div class="video-card">
+        <video src="Woman/Woman_EX4D_30.mp4" muted loop playsinline data-group="woman"></video>
+        <div class="label">
+          <span class="method-name">EX-4D 30°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Woman/Woman30.mp4" muted loop playsinline data-group="woman"></video>
+        <div class="label">
+          <span class="method-name">Ours 30°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Woman/Woman_EX4D_90.mp4" muted loop playsinline data-group="woman"></video>
+        <div class="label">
+          <span class="method-name">EX-4D 90°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Woman/Woman90.mp4" muted loop playsinline data-group="woman"></video>
+        <div class="label">
+          <span class="method-name">Ours 90°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Woman/Woman_EX4D_180.mp4" muted loop playsinline data-group="woman"></video>
+        <div class="label">
+          <span class="method-name">EX-4D 180°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Woman/Woman180.mp4" muted loop playsinline data-group="woman"></video>
+        <div class="label">
+          <span class="method-name">Ours 180°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sea -->
+  <div class="comparison-block" id="sea-block">
+    <div class="comparison-header">
+      <h2 class="section-title">Sea <span class="prompt-tag">Prompt: "Sunshine, soft light, cinematic quality"</span></h2>
+      <div class="controls">
+        <button class="btn" onclick="syncPlayAll('sea')">&#9654; Play All</button>
+        <button class="btn" onclick="syncPauseAll('sea')">&#10074;&#10074; Pause All</button>
+        <button class="btn" onclick="syncRestartAll('sea')">&#8635; Restart</button>
+      </div>
+    </div>
+
+    <div class="source-row">
+      <div class="label-inline">
+        <span>Source Video</span>
+        <span class="method-tag">Original input</span>
+      </div>
+      <div class="video-card">
+        <video src="Sea/Sea.mp4" muted loop playsinline data-group="sea"></video>
+        <div class="label">
+          <span class="method-name">Source</span>
+          <span class="method-tag">Input</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="video-grid">
+      <div class="video-card">
+        <video src="Sea/Sea_EX4D_30.mp4" muted loop playsinline data-group="sea"></video>
+        <div class="label">
+          <span class="method-name">EX-4D 30°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Sea/Sea30.mp4" muted loop playsinline data-group="sea"></video>
+        <div class="label">
+          <span class="method-name">Ours 30°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Sea/Sea_EX4D_90.mp4" muted loop playsinline data-group="sea"></video>
+        <div class="label">
+          <span class="method-name">EX-4D 90°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Sea/Sea90.mp4" muted loop playsinline data-group="sea"></video>
+        <div class="label">
+          <span class="method-name">Ours 90°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Sea/Sea_EX4D_180.mp4" muted loop playsinline data-group="sea"></video>
+        <div class="label">
+          <span class="method-name">EX-4D 180°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Sea/Sea180.mp4" muted loop playsinline data-group="sea"></video>
+        <div class="label">
+          <span class="method-name">Ours 180°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bear -->
+  <div class="comparison-block" id="bear-block">
+    <div class="comparison-header">
+      <h2 class="section-title">Bear <span class="prompt-tag">Prompt: "Pink and red neon"</span></h2>
+      <div class="controls">
+        <button class="btn" onclick="syncPlayAll('bear')">&#9654; Play All</button>
+        <button class="btn" onclick="syncPauseAll('bear')">&#10074;&#10074; Pause All</button>
+        <button class="btn" onclick="syncRestartAll('bear')">&#8635; Restart</button>
+      </div>
+    </div>
+
+    <div class="source-row">
+      <div class="label-inline">
+        <span>Source Video</span>
+        <span class="method-tag">Original input</span>
+      </div>
+      <div class="video-card">
+        <video src="Bear/Bear.mp4" muted loop playsinline data-group="bear"></video>
+        <div class="label">
+          <span class="method-name">Source</span>
+          <span class="method-tag">Input</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="video-grid">
+      <div class="video-card">
+        <video src="Bear/Bear_EX4D_30.mp4" muted loop playsinline data-group="bear"></video>
+        <div class="label">
+          <span class="method-name">EX-4D 30°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Bear/Bear30.mp4" muted loop playsinline data-group="bear"></video>
+        <div class="label">
+          <span class="method-name">Ours 30°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Bear/Bear_EX4D_90.mp4" muted loop playsinline data-group="bear"></video>
+        <div class="label">
+          <span class="method-name">EX-4D 90°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Bear/Bear90.mp4" muted loop playsinline data-group="bear"></video>
+        <div class="label">
+          <span class="method-name">Ours 90°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Bear/Bear_EX4D_180.mp4" muted loop playsinline data-group="bear"></video>
+        <div class="label">
+          <span class="method-name">EX-4D 180°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Bear/Bear180.mp4" muted loop playsinline data-group="bear"></video>
+        <div class="label">
+          <span class="method-name">Ours 180°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Dogb + Labubu (30°, side by side) ============ -->
+  <div class="comparison-block" id="dogb-labubu-block">
+    <div class="comparison-header">
+      <h2 class="section-title">Dog <span class="prompt-tag">Prompt: "Pink neon"</span> &nbsp;&amp;&nbsp; Labubu <span class="prompt-tag">Prompt: "Red neon"</span></h2>
+      <div class="controls">
+        <button class="btn" onclick="syncPlayAll('dogb-labubu')">&#9654; Play All</button>
+        <button class="btn" onclick="syncPauseAll('dogb-labubu')">&#10074;&#10074; Pause All</button>
+        <button class="btn" onclick="syncRestartAll('dogb-labubu')">&#8635; Restart</button>
+      </div>
+    </div>
+
+    <div class="video-grid">
+      <div class="video-card">
+        <video src="Dogb/Dogb.mp4" muted loop playsinline data-group="dogb-labubu"></video>
+        <div class="label">
+          <span class="method-name">Dog — Source</span>
+          <span class="method-tag">Input</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Dogb/Dogb_EX4D_30.mp4" muted loop playsinline data-group="dogb-labubu"></video>
+        <div class="label">
+          <span class="method-name">Dog — EX-4D 30°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Dogb/Dogb30.mp4" muted loop playsinline data-group="dogb-labubu"></video>
+        <div class="label">
+          <span class="method-name">Dog — Ours 30°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Labubu/Labubu.mp4" muted loop playsinline data-group="dogb-labubu"></video>
+        <div class="label">
+          <span class="method-name">Labubu — Source</span>
+          <span class="method-tag">Input</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="Labubu/Labubu_EX4D_30.mp4" muted loop playsinline data-group="dogb-labubu"></video>
+        <div class="label">
+          <span class="method-name">Labubu — EX-4D 30°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="Labubu/Labubu30.mp4" muted loop playsinline data-group="dogb-labubu"></video>
+        <div class="label">
+          <span class="method-name">Labubu — Ours 30°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ADd + ADe (Real-world Autonomous Driving) ============ -->
+  <div class="comparison-block" id="add-ade-block">
+    <div class="comparison-header">
+      <h2 class="section-title">Autonomous Driving — Real-world Scenes <span class="prompt-tag">Scene 1: "Sunset, cinematic quality"</span> <span class="prompt-tag">Scene 2: "Sunshine, soft light, cinematic quality"</span></h2>
+      <div class="controls">
+        <button class="btn" onclick="syncPlayAll('add-ade')">&#9654; Play All</button>
+        <button class="btn" onclick="syncPauseAll('add-ade')">&#10074;&#10074; Pause All</button>
+        <button class="btn" onclick="syncRestartAll('add-ade')">&#8635; Restart</button>
+      </div>
+    </div>
+
+    <div class="video-grid">
+      <div class="video-card">
+        <video src="ADd/ADd.mp4" muted loop playsinline data-group="add-ade"></video>
+        <div class="label">
+          <span class="method-name">Scene 1 — Source</span>
+          <span class="method-tag">Input</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="ADd/ADd_EX4D_30.mp4" muted loop playsinline data-group="add-ade"></video>
+        <div class="label">
+          <span class="method-name">Scene 1 — EX-4D 30°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="ADd/ADd30.mp4" muted loop playsinline data-group="add-ade"></video>
+        <div class="label">
+          <span class="method-name">Scene 1 — Ours 30°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="ADe/ADe.mp4" muted loop playsinline data-group="add-ade"></video>
+        <div class="label">
+          <span class="method-name">Scene 2 — Source</span>
+          <span class="method-tag">Input</span>
+        </div>
+      </div>
+      <div class="video-card">
+        <video src="ADe/ADe_EX4D_30.mp4" muted loop playsinline data-group="add-ade"></video>
+        <div class="label">
+          <span class="method-name">Scene 2 — EX-4D 30°</span>
+          <span class="method-tag">Baseline</span>
+        </div>
+      </div>
+      <div class="video-card highlight">
+        <video src="ADe/ADe30.mp4" muted loop playsinline data-group="add-ade"></video>
+        <div class="label">
+          <span class="method-name">Scene 2 — Ours 30°</span>
+          <span class="method-tag">Proposed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="container">Anonymous Submission &mdash; Qualitative Relighting Comparison</div>
+</footer>
+
+<script>
+function getVideos(group) {
+  return document.querySelectorAll(`video[data-group="${group}"]`);
+}
+
+function syncPlayAll(group) {
+  getVideos(group).forEach(v => v.play());
+}
+
+function syncPauseAll(group) {
+  getVideos(group).forEach(v => v.pause());
+}
+
+function syncRestartAll(group) {
+  getVideos(group).forEach(v => {
+    v.currentTime = 0;
+    v.play();
+  });
+}
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    const video = entry.target;
+    if (entry.isIntersecting) {
+      video.play();
+    } else {
+      video.pause();
+    }
+  });
+}, { threshold: 0.3 });
+
+document.querySelectorAll('video').forEach(v => observer.observe(v));
+</script>
+
+</body>
+</html>
